@@ -1,3 +1,6 @@
+using System.Runtime.CompilerServices;
+using System.Text.RegularExpressions;
+
 namespace Riok.Mapperly.Abstractions;
 
 /// <summary>
@@ -14,8 +17,18 @@ public sealed class MapPropertyAttribute : Attribute
     /// </summary>
     /// <param name="source">The name of the source property. The use of `nameof()` is encouraged. A path can be specified by joining property names with a '.'.</param>
     /// <param name="target">The name of the target property. The use of `nameof()` is encouraged. A path can be specified by joining property names with a '.'.</param>
-    public MapPropertyAttribute(string source, string target)
-        : this(source.Split(PropertyAccessSeparator), target.Split(PropertyAccessSeparator)) { }
+    /// <param name="sourceExpression"></param>
+    /// <param name="targetExpresion"></param>
+    public MapPropertyAttribute(
+        string source,
+        string target,
+        [CallerArgumentExpression(nameof(source))] string? sourceExpression = default,
+        [CallerArgumentExpression(nameof(target))] string? targetExpresion = default
+    )
+        : this(
+            GetParameter(source, sourceExpression).Split(PropertyAccessSeparator),
+            GetParameter(target, targetExpresion).Split(PropertyAccessSeparator)
+        ) { }
 
     /// <summary>
     /// Maps a specified source property to the specified target property.
@@ -47,4 +60,18 @@ public sealed class MapPropertyAttribute : Attribute
     /// Gets the full name of the target property path.
     /// </summary>
     public string TargetFullName => string.Join(PropertyAccessSeparatorStr, Target);
+
+    /// <summary>
+    /// Return either the parameter value or the argument value passed to nameof(@...)
+    /// </summary>
+    /// <param name="value"></param>
+    /// <param name="expression"></param>
+    /// <returns></returns>
+    private static string GetParameter(string value, string? expression)
+    {
+        var match = QualifiedNameOfRegex.Match(expression);
+        return match.Success ? string.Join(".", match.Groups[1].Value.Split('.').Skip(1)) : value;
+    }
+
+    private readonly static Regex QualifiedNameOfRegex = new(@"^nameof\(@(.*?)\)", RegexOptions.Compiled);
 }
