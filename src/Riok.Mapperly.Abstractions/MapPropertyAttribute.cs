@@ -67,11 +67,11 @@ public sealed class MapPropertyAttribute : Attribute
     /// <param name="value"></param>
     /// <param name="expression"></param>
     /// <returns></returns>
-    private static string GetParameter(string value, string? expression)
+    public static string GetParameter(string value, string? expression)
     {
         var match = QualifiedNameOfRegex.Match(expression);
-        return match.Success ? string.Join(".", match.Groups[1].Value.Split('.').Skip(1)) : value;
+        return match.Success ? match.Groups[1].Value.Split(new[] { '.' }, 2).Last() : value;
     }
 
-    private readonly static Regex QualifiedNameOfRegex = new(@"^nameof\(@(.*?)\)", RegexOptions.Compiled);
+    private static readonly Regex QualifiedNameOfRegex = new(@"^nameof\(@(.*?)\)", RegexOptions.Compiled);
 }
