@@ -11,28 +11,40 @@ public static class DerivedTypeMappingBuilder
 {
     public static ITypeMapping? TryBuildMapping(MappingBuilderContext ctx)
     {
+        var derivedTypeMappings = TryBuildContainedMappings(ctx);
+        if (derivedTypeMappings == null)
+            return null;
+
+        return ctx.IsExpression
+            ? new DerivedTypeIfExpressionMapping(ctx.Source, ctx.Target, derivedTypeMappings)
+            : new DerivedTypeSwitchMapping(ctx.Source, ctx.Target, derivedTypeMappings);
+    }
+
+    public static IReadOnlyCollection<ITypeMapping>? TryBuildContainedMappings(
+        MappingBuilderContext ctx,
+        bool duplicatedSourceTypesAllowed = false
+    )
+    {
         var configs = ctx.ListConfiguration<MapDerivedTypeAttribute, MapDerivedType>()
             .Concat(ctx.ListConfiguration<MapDerivedTypeAttribute<object, object>, MapDerivedType>())
             .ToList();
-        if (configs.Count == 0)
-            return null;
-
-        var derivedTypeMappings = BuildDerivedTypeMappings(ctx, configs);
-        return new DerivedTypeMapping(ctx.Source, ctx.Target, derivedTypeMappings);
+        return configs.Count == 0 ? null : BuildContainedMappings(ctx, configs, duplicatedSourceTypesAllowed);
     }
 
-    private static IReadOnlyDictionary<ITypeSymbol, ITypeMapping> BuildDerivedTypeMappings(
+    private static IReadOnlyCollection<ITypeMapping> BuildContainedMappings(
         MappingBuilderContext ctx,
-        IEnumerable<MapDerivedType> configs
+        IReadOnlyCollection<MapDerivedType> configs,
+        bool duplicatedSourceTypesAllowed
     )
     {
-        var derivedTypeMappings = new Dictionary<ITypeSymbol, ITypeMapping>(SymbolEqualityComparer.Default);
+        var derivedTypeMappingSourceTypes = new HashSet<ITypeSymbol>(SymbolEqualityComparer.Default);
+        var derivedTypeMappings = new List<ITypeMapping>(configs.Count);
 
         foreach (var config in configs)
         {
-            // set reference types non-nullable as they can never be null when type-switching.
-            var sourceType = config.SourceType.WithNullableAnnotation(NullableAnnotation.NotAnnotated);
-            if (derivedTypeMappings.ContainsKey(sourceType))
+            // set types non-nullable as they can never be null when type-switching.
+            var sourceType = config.SourceType.NonNullable();
+            if (!duplicatedSourceTypesAllowed && !derivedTypeMappingSourceTypes.Add(sourceType))
             {
                 ctx.ReportDiagnostic(DiagnosticDescriptors.DerivedSourceTypeDuplicated, sourceType);
                 continue;
@@ -44,7 +56,7 @@ public static class DerivedTypeMappingBuilder
                 continue;
             }
 
-            var targetType = config.TargetType.WithNullableAnnotation(NullableAnnotation.NotAnnotated);
+            var targetType = config.TargetType.NonNullable();
             if (!targetType.IsAssignableTo(ctx.Compilation, ctx.Target))
             {
                 ctx.ReportDiagnostic(DiagnosticDescriptors.DerivedTargetTypeIsNotAssignableToReturnType, targetType, ctx.Target);
@@ -58,7 +70,7 @@ public static class DerivedTypeMappingBuilder
                 continue;
             }
 
-            derivedTypeMappings.Add(sourceType, mapping);
+            derivedTypeMappings.Add(mapping);
         }
 
         return derivedTypeMappings;

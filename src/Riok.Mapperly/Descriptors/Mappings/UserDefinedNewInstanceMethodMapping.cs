@@ -26,16 +26,11 @@ public class UserDefinedNewInstanceMethodMapping : MethodMapping, IUserMapping
         bool enableReferenceHandling,
         INamedTypeSymbol referenceHandlerType
     )
-        : base(sourceParameter, method.ReturnType.UpgradeNullable())
+        : base(method, sourceParameter, referenceHandlerParameter, method.ReturnType.UpgradeNullable())
     {
         _enableReferenceHandling = enableReferenceHandling;
         _referenceHandlerType = referenceHandlerType;
-        IsPartial = true;
-        IsExtensionMethod = method.IsExtensionMethod;
-        Accessibility = method.DeclaredAccessibility;
         Method = method;
-        MethodName = method.Name;
-        ReferenceHandlerParameter = referenceHandlerParameter;
     }
 
     public IMethodSymbol Method { get; }
@@ -46,7 +41,7 @@ public class UserDefinedNewInstanceMethodMapping : MethodMapping, IUserMapping
     {
         if (_delegateMapping == null)
         {
-            return new[] { ThrowStatement(ThrowNotImplementedException()).WithLeadingTrivia(TriviaList(Comment(NoMappingComment))), };
+            return new[] { ExpressionStatement(ThrowNotImplementedException()).WithLeadingTrivia(TriviaList(Comment(NoMappingComment))), };
         }
 
         // if reference handling is enabled and no reference handler parameter is declared
